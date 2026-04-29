@@ -47,7 +47,7 @@ The honeypot is fully controlled via a config file:
   "port": 25565,
   "max_pings": 5,
   "time_window": 300,
-  "cleanup_interval": 3600,
+  "cleanup_interval": 60,
   "cache_ttl": 86400,
   "report_ttl": 1800,
 
