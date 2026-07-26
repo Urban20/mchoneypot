@@ -44,6 +44,10 @@ REPORT_TTL = config["report_ttl"]
 logs = config["logs"]
 logsdir = config["logs_directory"]
 
+log_dir = os.path.join(logsdir,logs) # by using os.path.join, we avoid potential errors in file paths.
+log_ip_dir = os.path.join(logsdir,pureiplogs)
+
+
 if logsdir and not os.path.exists(logsdir):
     os.makedirs(logsdir)
     print(f"Created directory: {logsdir}")
@@ -154,7 +158,7 @@ def lookup_ip(ip_address=None):
         return data
 
     except Exception as e:
-        print(f"IP lookup failed for {ip_address} with error: {e}")
+        print_error(f"IP lookup failed for {ip_address} with error: {e}")
         return {}
 
 def read_varint(sock):
@@ -207,6 +211,29 @@ def create_table(**kwargs):
     return text
 
 
+def save_info_players(username : str,ip : str):
+
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with log_lock:
+        with open(log_dir, "a") as f:
+
+            f.write(f"[{timestamp}] Login attempt from: {username} {ip}\n\n")
+
+        with open(log_ip_dir, "a") as f:
+            f.write(f"{ip} (login attempt)\n")
+
+def save_info_hits(ip : str, port,country : str,isp : str):
+
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    with log_lock:
+
+        with open(log_dir, "a") as f:
+
+            f.write(f"[{timestamp}] Ping from: `{ip}:{port}`\nCountry: {country}\nISP: {isp}\n\n")
+
+        with open(log_ip_dir, "a") as f:
+            f.write(f"{ip}\n")
 
 
 def read_varint_from_buffer(buf):
@@ -294,13 +321,14 @@ def log_hit(ip_address, port_num):
         f'ISP: {isp}\n'
     )
     print(connection)
-    with log_lock:
-        with open(f"{logsdir}/{logs}", "a") as f:
 
-            f.write(f"[{timestamp}] Ping from: `{ip_address}:{port_num}`\nCountry: {country}\nISP: {isp}\n\n")
+    save_info_hits(ip=ip_address, 
+              port=port_num,
+              country=country,
+              isp=isp,
+    )
 
-        with open(f"{logsdir}/{pureiplogs}", "a") as f:
-            f.write(f"{ip_address}\n")
+
     send_webhook(webhook_url, connection)
     report_ip(ip_address)
 
@@ -325,8 +353,8 @@ def run_honeypot(host=host, port=port):
                      cache_TTL=f'{CACHE_TTL}s',
                      report_TTL=f'{REPORT_TTL}',
                      webhook="enabled" if enable_webhook else "disabled",
-                     logs=f'{logsdir}/{logs}',
-                     IP_logs=f'{logsdir}/{pureiplogs}')
+                     logs=log_dir,
+                     IP_logs=log_ip_dir)
 
         print(table)
 
@@ -396,13 +424,10 @@ def run_honeypot(host=host, port=port):
                     print(f"{YELLOW}- LOGIN :{RESET} {username} at {ip_address}\n")
 
                     send_webhook(webhook_url, f"**Login attempt from: `{username}` `{ip_address}`**")
-                    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    with log_lock:
-                        with open(f"{logsdir}/{logs}", "a") as f:
-                            f.write(f"[{timestamp}] Login attempt from: {username} {ip_address}\n\n")
+                    
 
-                        with open(f"{logsdir}/{pureiplogs}", "a") as f:
-                            f.write(f"{ip_address} (login attempt)\n")
+                    save_info_players(username=username,
+                                      ip=ip_address)
 
                     reason = json.dumps(kick_message)
 
@@ -432,7 +457,7 @@ def run_honeypot(host=host, port=port):
 timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 with log_lock:
-    with open(f"{logsdir}/{logs}", "a") as f:
+    with open(log_dir, "a") as f:
         f.write(f"\n--------------------------------------------------------\n[{timestamp}] Honeypot started on port {port}.\n--------------------------------------------------------\n")
 Thread(target=cleanup_ip_requests, daemon=True).start()
 
