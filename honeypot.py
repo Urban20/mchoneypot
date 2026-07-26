@@ -9,7 +9,21 @@ import copy
 import random
 from io import BytesIO
 from threading import Thread, Lock
+from colorama import init
 
+
+YELLOW = '\033[1;33m'
+RESET = '\033[0m'
+GREEN = '\033[1;32m'
+RED = '\033[1;31m'
+
+init()
+
+
+def print_error(text : str):
+
+    print(RED + text + RESET + '\n')
+    
 with open("config.json") as f:
     config = json.load(f)
 
@@ -34,25 +48,36 @@ if logsdir and not os.path.exists(logsdir):
     os.makedirs(logsdir)
     print(f"Created directory: {logsdir}")
 if max_pings < 1:
-    print("max_pings must be at least 1.")
+
+    print_error("max_pings must be at least 1.")
+
     exit(1)
 if time_window < 1:
-    print("time_window must be at least 1.")
+    print_error("time_window must be at least 1.")
     exit(1)
 if port < 1 or port > 65535:
-    print("Invalid port number. Please use a port between 1 and 65535.")
+
+    print_error("Invalid port number. Please use a port between 1 and 65535.")
+
     exit(1)
 if enable_webhook and webhook_url in ("your-webhook-here", ""):
-    print("Webhook enabled but no URL provided. Disabling webhook.")
+
+    print_error("Webhook enabled but no URL provided. Disabling webhook.")
     exit(1)
 if cleanup_interval < 1:
-    print("cleanup_interval must be at least 1 second.")
+
+    print_error("cleanup_interval must be at least 1 second.")
+
     exit(1)
+
 if CACHE_TTL < 1:
-    print("cache_ttl must be at least 1 second.")
+
+    print_error("cache_ttl must be at least 1 second.")
     exit(1)
+
 if enable_reports and abuseip_api_key in ("your-abuseip-api-key-here", ""):
-    print("Reports enabled but no AbuseIPDB API key provided.")
+
+    print_error("Reports enabled but no AbuseIPDB API key provided.")
     exit(1)
 
 ip_requests = {}
@@ -88,13 +113,18 @@ def report_ip(ip_address):
         response = requests.post(url, headers=headers, data=data, timeout=10)
         if response.status_code == 200:
             print(f"[AbuseIPDB] Successfully reported {ip_address}")
+
         elif response.status_code == 429:
-            print(f"[AbuseIPDB] Rate limit hit! (Your API quota is likely exhausted)")
+            print_error(f"[AbuseIPDB] Rate limit hit! (Your API quota is likely exhausted)")
             enable_reports = False
+
         else:
-            print(f"[AbuseIPDB] Error {response.status_code}: {response.text}")
+            print_error(f"[AbuseIPDB] Error {response.status_code}: {response.text}")
+
     except requests.exceptions.RequestException as e:
-        print(f"[AbuseIPDB] Connection error for {ip_address}: {e}")
+
+        print_error(f"[AbuseIPDB] Connection error for {ip_address}: {e}")
+
 
 def send_webhook(webhook_url, message):
     if enable_webhook == False:
@@ -102,9 +132,11 @@ def send_webhook(webhook_url, message):
     data = {"content": message}
     headers = {"Content-Type": "application/json"}
     try:
+
         requests.post(webhook_url, json=data, headers=headers, timeout=5)
     except Exception as e:
-        print(f"Webhook error: {e}")
+
+        print_error(f"Webhook error: {e}")
 
 def lookup_ip(ip_address=None):
     now = time.time()
@@ -136,6 +168,46 @@ def read_varint(sock):
         if not (byte & 0x80):
             break
     return num
+
+def max_len(list : list[str]):
+
+    if not list:
+
+        return 0
+
+    last = len(list[0])
+
+    for el in list:
+
+        current = len(el)
+
+        if current > last:
+
+            last = current
+
+    return last
+
+def create_table(**kwargs):
+
+    keys = []
+    items = kwargs.items()
+    text = ''
+
+    for key,_ in items:
+
+        keys.append(key)
+
+    max_size = max_len(keys)
+
+
+    for key,value in items:
+
+        text += f'{YELLOW}{key.capitalize().replace('_',' ')}:{RESET}{' ' * (max_size + 1 - len(key))}{value}\n'
+
+    return text
+
+
+
 
 def read_varint_from_buffer(buf):
     num = 0
@@ -217,14 +289,16 @@ def log_hit(ip_address, port_num):
     country = location_isp.get("country") or "Unknown"
     isp = location_isp.get("isp") or "Unknown"
     connection = (
-        f'[{timestamp}] Ping from: `{ip_address}:{port_num}`\n'
+        f'{GREEN}- PING:{RESET} from: `{ip_address}:{port_num}` [{timestamp}]\n'
         f'Country: {country}\n'
-        f'ISP: {isp}'
+        f'ISP: {isp}\n'
     )
     print(connection)
     with log_lock:
         with open(f"{logsdir}/{logs}", "a") as f:
-            f.write(f"[{timestamp}] Ping from: `{ip_address}:{port_num}`\nCountry: {country}\nISP: {isp}\n")
+
+            f.write(f"[{timestamp}] Ping from: `{ip_address}:{port_num}`\nCountry: {country}\nISP: {isp}\n\n")
+
         with open(f"{logsdir}/{pureiplogs}", "a") as f:
             f.write(f"{ip_address}\n")
     send_webhook(webhook_url, connection)
@@ -239,20 +313,22 @@ def run_honeypot(host=host, port=port):
         server_socket.listen(5)
         
         send_webhook(webhook_url, f' **Honeypot started on port {port}**')
-        print(f"""
-        Best Minecraft honeypot started!
-          Reporting:        {"enabled" if enable_reports else "disabled"}
-          Port:             {port}
-          Host:             {host}
-          Max pings:        {max_pings}
-          Time window:      {time_window}s
-          Cleanup interval: {cleanup_interval}s
-          Cache TTL:        {CACHE_TTL}s
-          Report TTL:       {REPORT_TTL}s
-          Webhook:          {"enabled" if enable_webhook else "disabled"}
-          Logs:             {logsdir}/{logs}
-          IP logs:          {logsdir}/{pureiplogs}
-        """)
+
+        print('Best Minecraft honeypot started!\n')
+
+        table = create_table(repoting="enabled" if enable_reports else "disabled",
+                     port=port,
+                     host=host,
+                     max_Pings=max_pings,
+                     time_window=f'{time_window}s',
+                     cleanup_interval=f'{cleanup_interval}s',
+                     cache_TTL=f'{CACHE_TTL}s',
+                     report_TTL=f'{REPORT_TTL}',
+                     webhook="enabled" if enable_webhook else "disabled",
+                     logs=f'{logsdir}/{logs}',
+                     IP_logs=f'{logsdir}/{pureiplogs}')
+
+        print(table)
 
         print("waiting for scanners ;)\n")
 
@@ -316,15 +392,20 @@ def run_honeypot(host=host, port=port):
                     read_varint_from_buffer(buffer) 
                     name_len = read_varint_from_buffer(buffer)
                     username = buffer.read(name_len).decode("utf-8")
-                    print(f"Login attempt from: {username} at {ip_address}")
+
+                    print(f"{YELLOW}- LOGIN :{RESET} {username} at {ip_address}\n")
+
                     send_webhook(webhook_url, f"**Login attempt from: `{username}` `{ip_address}`**")
                     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     with log_lock:
                         with open(f"{logsdir}/{logs}", "a") as f:
-                            f.write(f"[{timestamp}] Login attempt from: {username} {ip_address}\n")
+                            f.write(f"[{timestamp}] Login attempt from: {username} {ip_address}\n\n")
+
                         with open(f"{logsdir}/{pureiplogs}", "a") as f:
                             f.write(f"{ip_address} (login attempt)\n")
+
                     reason = json.dumps(kick_message)
+
                     reason_encoded = reason.encode("utf-8")
                     time.sleep(random.randint(1,4))
                     packet = send_varint(0x00) + send_varint(len(reason_encoded)) + reason_encoded
@@ -334,16 +415,22 @@ def run_honeypot(host=host, port=port):
                     client_socket.close()
 
             except Exception as e:
-                print(f"packet error: {e}")
+
+                print_error(f"packet error: {e}")
+
             finally:
                 client_socket.close()
 
     except Exception as e:
-        print(f"server error: {e}")
+
+        print_error(f"server error: {e}")
+
     finally:
+
         server_socket.close()
 
 timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
 with log_lock:
     with open(f"{logsdir}/{logs}", "a") as f:
         f.write(f"\n--------------------------------------------------------\n[{timestamp}] Honeypot started on port {port}.\n--------------------------------------------------------\n")
