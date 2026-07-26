@@ -20,6 +20,8 @@ RED = '\033[1;31m'
 init()
 
 
+get_current_time = lambda : datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
 def print_error(text : str):
 
     print(RED + text + RESET + '\n')
@@ -145,10 +147,14 @@ def send_webhook(webhook_url, message):
 def lookup_ip(ip_address=None):
     now = time.time()
     with ip_cache_lock:
+
         if ip_address in ip_cache:
+
             data, timestamp = ip_cache[ip_address]
+
             if now - timestamp < CACHE_TTL:
                 return data
+            
     url = f"http://ip-api.com/json/{ip_address}" if ip_address else "http://ip-api.com/json/"
     try:
         api = requests.get(url, headers={'User-Agent': 'MCHoneypot/1.0'}, timeout=5)
@@ -210,10 +216,10 @@ def create_table(**kwargs):
 
     return text
 
-
 def save_info_players(username : str,ip : str):
 
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = get_current_time()
+
     with log_lock:
         with open(log_dir, "a") as f:
 
@@ -224,7 +230,7 @@ def save_info_players(username : str,ip : str):
 
 def save_info_hits(ip : str, port,country : str,isp : str):
 
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = get_current_time()
 
     with log_lock:
 
@@ -234,7 +240,6 @@ def save_info_hits(ip : str, port,country : str,isp : str):
 
         with open(log_ip_dir, "a") as f:
             f.write(f"{ip}\n")
-
 
 def read_varint_from_buffer(buf):
     num = 0
@@ -276,13 +281,18 @@ def cleanup_ip_requests():
         with ip_requests_lock:
             expired = [ip for ip, times in ip_requests.items() 
                       if not any(now - t < time_window for t in times)]
+            
             for ip in expired:
                 del ip_requests[ip]
+
         with ip_cache_lock:
+
             expired_ips = [ip for ip, (_, ts) in ip_cache.items() if now - ts >= CACHE_TTL]
             for ip in expired_ips:
                 del ip_cache[ip]
+
         with report_cache_lock:
+
             expired_reports = [ip for ip, ts in report_cache.items() if now - ts >= REPORT_TTL]
             for ip in expired_reports:
                 del report_cache[ip]
@@ -311,7 +321,9 @@ def send_mc_status(client_socket):
     client_socket.sendall(send_varint(len(packet)) + packet)
 
 def log_hit(ip_address, port_num):
-    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    timestamp = get_current_time()
+
     location_isp = lookup_ip(ip_address)
     country = location_isp.get("country") or "Unknown"
     isp = location_isp.get("isp") or "Unknown"
@@ -454,7 +466,7 @@ def run_honeypot(host=host, port=port):
 
         server_socket.close()
 
-timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+timestamp = get_current_time()
 
 with log_lock:
     with open(log_dir, "a") as f:
