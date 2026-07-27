@@ -94,6 +94,17 @@ ip_cache_lock = Lock()
 report_cache = {}
 report_cache_lock = Lock()
 
+
+def save_file(dir : str, content : str):
+
+
+    with log_lock:
+
+        with open(dir, "a") as f:
+        
+            f.write(content)
+
+
 def report_ip(ip_address):
     global enable_reports
     if not enable_reports:
@@ -220,26 +231,20 @@ def save_info_players(username : str,ip : str):
 
     timestamp = get_current_time()
 
-    with log_lock:
-        with open(log_dir, "a") as f:
+    
+    save_file(log_dir,f"[{timestamp}] Login attempt from: {username} {ip}\n\n")
 
-            f.write(f"[{timestamp}] Login attempt from: {username} {ip}\n\n")
+    save_file(log_ip_dir,f"{ip} (login attempt)\n")
 
-        with open(log_ip_dir, "a") as f:
-            f.write(f"{ip} (login attempt)\n")
 
 def save_info_hits(ip : str, port,country : str,isp : str):
 
     timestamp = get_current_time()
 
-    with log_lock:
+    save_file(log_dir,f"[{timestamp}] Ping from: `{ip}:{port}`\nCountry: {country}\nISP: {isp}\n\n")
 
-        with open(log_dir, "a") as f:
+    save_file(log_ip_dir,ip+'\n')
 
-            f.write(f"[{timestamp}] Ping from: `{ip}:{port}`\nCountry: {country}\nISP: {isp}\n\n")
-
-        with open(log_ip_dir, "a") as f:
-            f.write(f"{ip}\n")
 
 def read_varint_from_buffer(buf):
     num = 0
@@ -468,9 +473,9 @@ def run_honeypot(host=host, port=port):
 
 timestamp = get_current_time()
 
-with log_lock:
-    with open(log_dir, "a") as f:
-        f.write(f"\n--------------------------------------------------------\n[{timestamp}] Honeypot started on port {port}.\n--------------------------------------------------------\n")
+
+save_file(log_dir,f"\n{'-'*50}\n[{timestamp}] Honeypot started on port {port}.\n{'-'*50}\n")
+
 Thread(target=cleanup_ip_requests, daemon=True).start()
 
 run_honeypot()
