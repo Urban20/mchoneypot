@@ -94,6 +94,18 @@ ip_cache_lock = Lock()
 report_cache = {}
 report_cache_lock = Lock()
 
+def ips_ignore():
+
+    try:
+        with open('ignore-list.txt','r') as list:
+
+            return [ip.replace('\n','') for ip in list.readlines()]
+
+    except FileNotFoundError:
+
+        return []
+
+ignore_list = ips_ignore()
 
 def save_file(dir : str, content : str):
 
@@ -329,6 +341,10 @@ def log_hit(ip_address, port_num):
 
     timestamp = get_current_time()
 
+    if ip_address in ips_ignore():
+
+        return
+
     location_isp = lookup_ip(ip_address)
     country = location_isp.get("country") or "Unknown"
     isp = location_isp.get("isp") or "Unknown"
@@ -371,7 +387,8 @@ def run_honeypot(host=host, port=port):
                      report_TTL=f'{REPORT_TTL}',
                      webhook="enabled" if enable_webhook else "disabled",
                      logs=log_dir,
-                     IP_logs=log_ip_dir)
+                     IP_logs=log_ip_dir,
+                     ignore_list=ignore_list)
 
         print(table)
 
